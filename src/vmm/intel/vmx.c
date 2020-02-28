@@ -89,7 +89,8 @@
 	 PROCBASED2_PAUSE_LOOP_EXITING /* FIXME */ | \
 	 PROCBASED2_RDRAND_EXITING | \
 	 PROCBASED2_ENABLE_INVPCID /* FIXME */ | \
-	 PROCBASED2_RDSEED_EXITING)
+	 PROCBASED2_RDSEED_EXITING | \
+	 PROCBASED2_VMCS_SHADOW )
 #define PINBASED_CTLS_ONE_SETTING \
 	(PINBASED_EXTINT_EXITING | \
 	 PINBASED_NMI_EXITING | \
@@ -1185,7 +1186,7 @@ vmx_set_guest_reg(int vcpu, int ident, uint64_t regval)
 static int
 vmx_emulate_cr0_access(UNUSED struct vm *vm, int vcpu, uint64_t exitqual)
 {
-	uint64_t crval, regval;
+	uint64_t crval, efer, entryctls, regval;
 	// *pt;
 
 	/* We only handle mov to %cr0 at this time */
@@ -1202,15 +1203,14 @@ vmx_emulate_cr0_access(UNUSED struct vm *vm, int vcpu, uint64_t exitqual)
 	// 	regval, cr0_ones_mask, cr0_zeros_mask, crval);
 	vmcs_write(vcpu, VMCS_GUEST_CR0, crval);
 
-	if (regval & CR0_PG) {
-		uint64_t efer, entryctls;
+	efer = vmcs_read(vcpu, VMCS_GUEST_IA32_EFER);
 
+	if (regval & CR0_PG) {
 		/*
 		 * If CR0.PG is 1 and EFER.LME is 1 then EFER.LMA and
 		 * the "IA-32e mode guest" bit in VM-entry control must be
 		 * equal.
 		 */
-		efer = vmcs_read(vcpu, VMCS_GUEST_IA32_EFER);
 		if (efer & EFER_LME) {
 			efer |= EFER_LMA;
 			vmcs_write(vcpu, VMCS_GUEST_IA32_EFER, efer);
@@ -1231,6 +1231,18 @@ vmx_emulate_cr0_access(UNUSED struct vm *vm, int vcpu, uint64_t exitqual)
 		// 	vmcs_write(vcpu, VMCS_GUEST_PDPTE2, pt[2]);
 		// 	vmcs_write(vcpu, VMCS_GUEST_PDPTE3, pt[3]);
 		// }
+	} else {
+		/*
+		 * If CR0.PG is 0 and EFER.LMA is 1, this is a
+		 * switch out of IA32e mode so emulate that.
+		 */
+		if (efer & EFER_LMA) {
+			efer &= ~(uint64_t)EFER_LMA;
+			vmcs_write(vcpu, VMCS_GUEST_IA32_EFER, efer);
+			entryctls = vmcs_read(vcpu, VMCS_ENTRY_CTLS);
+			entryctls &= ~VM_ENTRY_GUEST_LMA;
+			vmcs_write(vcpu, VMCS_ENTRY_CTLS, entryctls);
+		}
 	}
 
 	return (HANDLED);
@@ -1333,7 +1345,7 @@ inout_str_index(struct vmx *vmx, int vcpuid, int in)
 	enum vm_reg_name reg;
 
 	reg = in ? VM_REG_GUEST_RDI : VM_REG_GUEST_RSI;
-	error = vmx_getreg(vmx, vcpuid, reg, &val);
+	error = vmx_getreg(vmx, vcpuid, (int) reg, &val);
 	KASSERT(error == 0, ("%s: vmx_getreg error %d", __func__, error));
 	return (val);
 }
@@ -1384,7 +1396,7 @@ inout_str_seginfo(struct vmx *vmx, int vcpuid, uint32_t inst_info, int in,
 		vis->seg_name = vm_segment_name(s);
 	}
 
-	error = vmx_getdesc(vmx, vcpuid, vis->seg_name, &vis->seg_desc);
+	error = vmx_getdesc(vmx, vcpuid, (int) vis->seg_name, &vis->seg_desc);
 	KASSERT(error == 0, ("%s: vmx_getdesc error %d", __func__, error));
 }
 

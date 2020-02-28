@@ -32,8 +32,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/param.h>
+
+#include <CommonCrypto/CommonDigest.h>
+
 #include <xhyve/support/misc.h>
-#include <xhyve/support/md5.h>
 #include <xhyve/support/uuid.h>
 #include <xhyve/vmm/vmm_api.h>
 #include <xhyve/xhyve.h>
@@ -596,8 +598,8 @@ smbios_type1_initializer(struct smbios_structure *template_entry,
 
 		uuid_enc_le(&type1->uuid, &uuid);
 	} else {
-		MD5_CTX		mdctx;
-		u_char		digest[16];
+		CC_SHA256_CTX	mdctx;
+		u_char		digest[CC_SHA256_DIGEST_LENGTH];
 		char		hostname[MAXHOSTNAMELEN];
 
 		/*
@@ -608,10 +610,10 @@ smbios_type1_initializer(struct smbios_structure *template_entry,
 		if (gethostname(hostname, sizeof(hostname)))
 			return (-1);
 
-		MD5Init(&mdctx);
-		MD5Update(&mdctx, vmname, ((unsigned) strlen(vmname)));
-		MD5Update(&mdctx, hostname, ((unsigned) sizeof(hostname)));
-		MD5Final(digest, &mdctx);
+		CC_SHA256_Init(&mdctx);
+		CC_SHA256_Update(&mdctx, vmname, ((unsigned) strlen(vmname)));
+		CC_SHA256_Update(&mdctx, hostname, ((unsigned) sizeof(hostname)));
+		CC_SHA256_Final(digest, &mdctx);
 
 		/*
 		 * Set the variant and version number.

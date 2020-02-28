@@ -674,7 +674,7 @@ cb_setreg(UNUSED void *arg, int r, uint64_t v)
 		abort();
 	}
 
-	error = xh_vm_set_register(BSP, vmreg, v);
+	error = xh_vm_set_register(BSP, (int) vmreg, v);
 	if (error) {
 		perror("xh_vm_set_register");
 		cb_exit();
@@ -682,7 +682,7 @@ cb_setreg(UNUSED void *arg, int r, uint64_t v)
 }
 
 static void
-cb_setmsr(UNUSED void *arg, int r, uint64_t v)
+cb_setmsr(UNUSED void *arg, u_int r, uint64_t v)
 {
 	int error;
 	enum vm_reg_name vmreg;
@@ -701,7 +701,7 @@ cb_setmsr(UNUSED void *arg, int r, uint64_t v)
 		abort();
 	}
 
-	error = xh_vm_set_register(BSP, vmreg, v);
+	error = xh_vm_set_register(BSP, (int) vmreg, v);
 	if (error) {
 		perror("xh_vm_set_msr");
 		cb_exit();
@@ -736,7 +736,7 @@ cb_setcr(UNUSED void *arg, int r, uint64_t v)
 		cb_exit();
 	}
 
-	error = xh_vm_set_register(BSP, vmreg, v);
+	error = xh_vm_set_register(BSP, (int) vmreg, v);
 	if (error) {
 		perror("vm_set_cr");
 		cb_exit();
